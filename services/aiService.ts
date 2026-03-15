@@ -1,5 +1,6 @@
 import openai from "@/lib/openai";
 import { truncateText } from "@/utils/aiTextUtils";
+import { splitTextIntoChunks } from "@/utils/textChunker";
 
 const MAX_INPUT_LENGTH = 8000;
 
@@ -46,24 +47,46 @@ export async function chatWithAI(message: string): Promise<string> {
 }
 
 export async function summarizeDocumentText(text: string) {
-  const MAX_LENGTH = 8000;
+  const chunks = splitTextIntoChunks(text, 3000);
 
-  const safeText = text.slice(0, MAX_LENGTH);
+  const partialSummaries: string[] = [];
 
-  const response = await openai.chat.completions.create({
+  for (const chunk of chunks) {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You summarize documents clearly and concisely.",
+        },
+        {
+          role: "user",
+          content: `Summarize this document section:\n\n${chunk}`,
+        },
+      ],
+      temperature: 0.3,
+    });
+
+    const summary = response.choices[0].message.content || "";
+
+    partialSummaries.push(summary);
+  }
+
+  const combinedSummary = partialSummaries.join("\n");
+
+  const finalResponse = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: "You summarize documents clearly and concisely.",
+        content: "Create a concise final summary from these section summaries.",
       },
       {
         role: "user",
-        content: `Summarize the following document:\n\n${safeText}`,
+        content: combinedSummary,
       },
     ],
-    temperature: 0.5,
   });
 
-  return response.choices[0].message.content || "";
+  return finalResponse.choices[0].message.content || "";
 }
