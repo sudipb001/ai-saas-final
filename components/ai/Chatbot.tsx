@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Message = {
   role: "user" | "assistant";
@@ -21,27 +22,46 @@ export default function Chatbot() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
     setLoading(true);
 
-    const response = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: userMessage.content,
-      }),
-    });
+    const currentMessage = input;
+    setInput("");
 
-    const data = await response.json();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const aiMessage: Message = {
-      role: "assistant",
-      content: data.reply,
-    };
+      if (!user) {
+        alert("User not authenticated");
+        setLoading(false);
+        return;
+      }
 
-    setMessages((prev) => [...prev, aiMessage]);
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: currentMessage,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      const aiMessage: Message = {
+        role: "assistant",
+        content: data.reply,
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      alert("AI chat failed");
+    }
+
     setLoading(false);
   };
 

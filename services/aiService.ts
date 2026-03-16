@@ -1,6 +1,8 @@
 import openai from "@/lib/openai";
 import { truncateText } from "@/utils/aiTextUtils";
 import { splitTextIntoChunks } from "@/utils/textChunker";
+// import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const MAX_INPUT_LENGTH = 8000;
 
@@ -68,7 +70,6 @@ export async function summarizeDocumentText(text: string) {
     });
 
     const summary = response.choices[0].message.content || "";
-
     partialSummaries.push(summary);
   }
 
@@ -89,4 +90,32 @@ export async function summarizeDocumentText(text: string) {
   });
 
   return finalResponse.choices[0].message.content || "";
+}
+
+export async function logAIRequest(
+  userId: string,
+  type: string,
+  prompt: string,
+  response: string,
+) {
+  console.log("Logging AI request:", {
+    userId,
+    type,
+  });
+
+  const { data, error } = await supabaseAdmin
+    .from("ai_requests")
+    .insert({
+      user_id: userId,
+      request_type: type,
+      prompt: prompt,
+      response: response,
+    })
+    .select();
+
+  if (error) {
+    console.error("AI request log error:", error);
+  } else {
+    console.log("AI request logged successfully:", data);
+  }
 }
