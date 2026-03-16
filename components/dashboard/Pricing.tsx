@@ -32,9 +32,15 @@ export default function Pricing() {
 
       const data = await response.json();
 
-      alert("Subscription created: " + data.id);
-    } catch {
-      alert("Subscription failed");
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Subscription failed");
+      }
+
+      alert("Subscription created: " + data.subscription?.id);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Subscription failed";
+      alert(message);
     } finally {
       setLoading(false);
     }

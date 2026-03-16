@@ -1,19 +1,56 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function createSubscription(userId: string, plan: string) {
-  const subscription = {
-    id: "sub_demo_12345",
-    plan,
-    status: "active",
-  };
+  const normalizedUserId = (userId ?? "").trim();
+  const normalizedPlan = (plan ?? "").trim().toLowerCase();
 
-  await supabase.from("subscriptions").insert({
-    user_id: userId,
-    plan: plan,
-    status: "active",
+  console.log("[createSubscription] Attempting insert", {
+    userId: normalizedUserId,
+    plan: normalizedPlan,
   });
 
-  return subscription;
+  if (!normalizedUserId) {
+    throw new Error("Missing required field: userId");
+  }
+
+  if (!normalizedPlan) {
+    throw new Error("Missing required field: plan");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("subscriptions")
+    .insert({
+      user_id: normalizedUserId,
+      plan: normalizedPlan,
+      status: "active",
+    })
+    .select("id, user_id, plan, status, created_at")
+    .single();
+
+  console.log("[createSubscription] Supabase insert result", {
+    userId: normalizedUserId,
+    plan: normalizedPlan,
+    insertResult: data,
+  });
+
+  if (error) {
+    console.error("[createSubscription] Supabase insert error", {
+      userId: normalizedUserId,
+      plan: normalizedPlan,
+      error,
+    });
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    console.error("[createSubscription] Insert completed without data", {
+      userId: normalizedUserId,
+      plan: normalizedPlan,
+    });
+    throw new Error("Failed to create subscription: no row returned");
+  }
+
+  return data;
 }
 
 // export async function createSubscription(plan: string) {
