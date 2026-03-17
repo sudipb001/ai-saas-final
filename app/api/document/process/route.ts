@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { extractTextFromDocument } from "@/services/documentProcessor";
+import {
+  DocumentExtractionError,
+  extractTextFromDocument,
+} from "@/services/documentProcessor";
 import { summarizeDocumentText } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -34,6 +37,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ summary, filePath, fileName });
   } catch (error) {
+    if (error instanceof DocumentExtractionError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500 });

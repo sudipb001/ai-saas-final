@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+import type { ListDocumentsResponse } from "@/types/document";
 
 type ProcessDocumentResponse = {
   summary: string;
@@ -59,4 +60,21 @@ export async function uploadAndProcessDocument(
   }
 
   return processUploadedDocument(filePath);
+}
+
+export async function listDocuments(): Promise<ListDocumentsResponse> {
+  const response = await fetch("/api/documents", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload?.error || "Failed to load documents");
+  }
+
+  return payload as ListDocumentsResponse;
 }
