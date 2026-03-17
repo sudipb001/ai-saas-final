@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { uploadDocument } from "@/services/documentService";
+import { uploadAndProcessDocument } from "@/services/documentService";
 
 export default function FileUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [summary, setSummary] = useState("");
 
   const handleUpload = async () => {
     if (!file) {
@@ -16,10 +17,12 @@ export default function FileUpload() {
 
     try {
       setUploading(true);
+      setSummary("");
 
-      const filePath = await uploadDocument(file);
+      const result = await uploadAndProcessDocument(file);
 
-      setMessage(`File uploaded: ${filePath}`);
+      setMessage(`File processed: ${result.fileName}`);
+      setSummary(result.summary);
     } catch (error) {
       console.error(error);
       setMessage("Upload failed. Check console.");
@@ -47,6 +50,13 @@ export default function FileUpload() {
       </button>
 
       {message && <p className="mt-4 text-gray-300">{message}</p>}
+
+      {summary && (
+        <div className="mt-4 rounded border border-gray-700 bg-gray-800 p-3">
+          <h3 className="mb-2 font-semibold text-white">Generated Summary</h3>
+          <p className="text-sm text-gray-200 whitespace-pre-wrap">{summary}</p>
+        </div>
+      )}
     </div>
   );
 }

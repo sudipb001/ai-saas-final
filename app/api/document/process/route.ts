@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractTextFromDocument } from "@/services/documentProcessor";
 import { summarizeDocumentText } from "@/services/aiService";
-import { supabaseServer } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -20,24 +20,19 @@ export async function POST(req: Request) {
     const text = await extractTextFromDocument(filePath);
     const summary = await summarizeDocumentText(text);
 
-    const fileName = filePath.split("/").pop();
+    const fileName = filePath.split("/").pop() || filePath;
 
-    const { error } = await supabaseServer.from("documents").insert({
+    const { error } = await supabaseAdmin.from("documents").insert({
       file_name: fileName,
       file_path: filePath,
       summary,
     });
 
-    // const { error } = await supabaseServer.from("documents").insert({
-    //   file_path: filePath,
-    //   summary,
-    // });
-
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ summary, filePath, fileName });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";

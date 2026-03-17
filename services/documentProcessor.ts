@@ -1,8 +1,8 @@
-import { supabaseServer } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import pdf from "pdf-parse";
 
 export async function extractTextFromDocument(filePath: string) {
-  const { data, error } = await supabaseServer.storage
+  const { data, error } = await supabaseAdmin.storage
     .from("documents")
     .download(filePath);
 
@@ -24,7 +24,7 @@ export async function extractTextFromDocument(filePath: string) {
       return pdfData.text;
     } catch (error) {
       console.error("PDF parsing error:", error);
-      return "PDF text extraction failed";
+      throw new Error("PDF text extraction failed");
     }
   }
 
