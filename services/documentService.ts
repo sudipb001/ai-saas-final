@@ -41,6 +41,11 @@ export async function processUploadedDocument(
     body: JSON.stringify({ filePath }),
   });
 
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Processing failed");
+  }
+
   const payload = await response.json();
 
   if (!response.ok) {

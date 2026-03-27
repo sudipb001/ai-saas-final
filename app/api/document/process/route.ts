@@ -21,6 +21,14 @@ export async function POST(req: Request) {
     }
 
     const text = await extractTextFromDocument(filePath);
+
+    if (!text || !text.trim()) {
+      return Response.json(
+        { error: "No extractable text found in document" },
+        { status: 422 },
+      );
+    }
+
     const summary = await summarizeDocumentText(text);
 
     const fileName = filePath.split("/").pop() || filePath;

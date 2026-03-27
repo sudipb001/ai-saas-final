@@ -19,7 +19,8 @@ export default function FileUpload() {
       const data = await listDocuments();
       setDocuments(data.documents);
     } catch (error) {
-      console.error("Failed to fetch document history:", error);
+      setMessage(error instanceof Error ? error.message : "An error occurred");
+      // console.error("Failed to fetch document history:", error);
     }
   };
 
@@ -36,6 +37,13 @@ export default function FileUpload() {
     try {
       setUploading(true);
       setSummary("");
+
+      const allowedTypes = ["application/pdf", "text/plain"];
+
+      if (!allowedTypes.includes(file.type)) {
+        setMessage("Only PDF and TXT files are supported");
+        return;
+      }
 
       const result = await uploadAndProcessDocument(file);
 
