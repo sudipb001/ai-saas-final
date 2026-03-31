@@ -20,7 +20,6 @@ export default function FileUpload() {
       setDocuments(data.documents);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "An error occurred");
-      // console.error("Failed to fetch document history:", error);
     }
   };
 
@@ -55,6 +54,36 @@ export default function FileUpload() {
       setMessage("Upload failed. Check console.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  // ✅ NEW: PDF Download Handler
+  const handleDownloadPdf = async (documentId: string, fileName: string) => {
+    try {
+      const response = await fetch(
+        `/api/document/pdf?id=${encodeURIComponent(documentId)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to download PDF");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = fileName.toLowerCase().endsWith(".pdf")
+        ? fileName
+        : `${fileName.replace(/\.[^/.]+$/, "")}.pdf`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      setMessage("PDF download failed.");
     }
   };
 
@@ -100,13 +129,24 @@ export default function FileUpload() {
                 <p className="text-sm font-medium text-white">
                   {doc.file_name}
                 </p>
+
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(doc.created_at).toLocaleString()}
                 </p>
+
                 <p className="text-sm text-gray-200 mt-2 whitespace-pre-wrap">
                   {(doc.summary ?? "No summary available.").slice(0, 200)}
                   {(doc.summary ?? "").length > 200 ? "..." : ""}
                 </p>
+
+                {/* ✅ NEW: Download PDF Button */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(doc.id, doc.file_name)}
+                  className="mt-3 bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                >
+                  Download PDF
+                </button>
               </div>
             ))}
           </div>
