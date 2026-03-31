@@ -87,6 +87,30 @@ export default function FileUpload() {
     }
   };
 
+  // ✅ Excel Download Handler
+  const handleDownloadExcel = async () => {
+    try {
+      const response = await fetch("/api/document/excel");
+
+      if (!response.ok) {
+        throw new Error("Failed to generate Excel");
+      }
+
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "documents.xlsx";
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Excel download failed:", error);
+      alert("Failed to download Excel file");
+    }
+  };
+
   return (
     <div className="w-full max-w-2xl border border-gray-700 rounded p-4 bg-gray-900">
       <h2 className="text-xl font-bold mb-4">Upload Document</h2>
@@ -103,6 +127,14 @@ export default function FileUpload() {
         disabled={uploading}
       >
         {uploading ? "Uploading..." : "Upload File"}
+      </button>
+      <br />
+      <button
+        type="button"
+        onClick={handleDownloadExcel}
+        className="mt-3 bg-green-600 text-white px-3 py-1 rounded text-sm"
+      >
+        Download Excel
       </button>
 
       {message && <p className="mt-4 text-gray-300">{message}</p>}

@@ -1,0 +1,32 @@
+export const runtime = "nodejs";
+
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { generateExcelFromDocuments } from "@/services/excelService";
+
+export async function GET() {
+  // Step 1 — Fetch all documents
+  const { data: documents, error } = await supabaseAdmin
+    .from("documents")
+    .select("file_name, summary, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!documents || documents.length === 0) {
+    return Response.json({ error: "No documents found" }, { status: 404 });
+  }
+
+  // Step 2 — Generate Excel file
+  const excelBuffer = generateExcelFromDocuments(documents);
+
+  // Step 3 — Return file response
+  return new Response(excelBuffer as any, {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="documents.xlsx"`,
+    },
+  });
+}
