@@ -18,8 +18,14 @@ export async function GET() {
     return Response.json({ error: "No documents found" }, { status: 404 });
   }
 
+  const normalizedDocuments = documents.map((doc) => ({
+    file_name: doc.file_name ?? "Untitled",
+    summary: doc.summary ?? "No summary available.",
+    created_at: doc.created_at ?? null,
+  }));
+
   // Step 2 — Generate Excel file
-  const excelBuffer = generateExcelFromDocuments(documents);
+  const excelBuffer = generateExcelFromDocuments(normalizedDocuments);
 
   // Step 3 — Return file response
   return new Response(excelBuffer as any, {

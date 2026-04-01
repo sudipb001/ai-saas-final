@@ -25,9 +25,15 @@ export async function GET(request: Request) {
     return Response.json({ error: "Document not found" }, { status: 404 });
   }
 
-  const pdfBuffer = await generatePdfFromDocument(document);
+  const normalizedDocument = {
+    file_name: document.file_name ?? "document",
+    summary: document.summary ?? "No summary available.",
+  };
 
-  const fileName = document.file_name.replace(/\.[^.]+$/, "") || "document";
+  const pdfBuffer = await generatePdfFromDocument(normalizedDocument);
+
+  const fileName =
+    normalizedDocument.file_name.replace(/\.[^.]+$/, "") || "document";
 
   return new Response(Buffer.from(pdfBuffer), {
     headers: {
