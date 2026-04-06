@@ -29,9 +29,69 @@ async function updateProcessingJob(
   }
 }
 
-export async function POST(req: Request) {
-  let jobId: string | null = null;
+// Background processing function
+async function processDocumentJob(jobId: string, filePath: string) {
+  try {
+    // Step 1 — Mark processing
+    await updateProcessingJob(jobId, "processing");
 
+    // Step 2 — Extract text
+    const text = await extractTextFromDocument(filePath);
+
+    if (!text || !text.trim()) {
+      throw new DocumentExtractionError(
+        "No extractable text found in document",
+      );
+    }
+
+    // Step 3 — AI summarization
+    const summary = await summarizeDocumentText(text);
+
+    const fileName = filePath.split("/").pop() || filePath;
+
+    // Step 4 — Insert document
+    const { data: insertedDocument, error: insertError } = await supabaseAdmin
+      .from("documents")
+      .insert({
+        file_name: fileName,
+        file_path: filePath,
+        summary,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    // Step 5 — Link job to document
+    const { error: linkError } = await supabaseAdmin
+      .from("processing_jobs")
+      .update({
+        document_id: insertedDocument?.id ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    if (linkError) {
+      throw new Error(linkError.message);
+    }
+
+    // Step 6 — Mark completed
+    await updateProcessingJob(jobId, "completed");
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Internal Server Error";
+
+    try {
+      await updateProcessingJob(jobId, "failed", message);
+    } catch (jobUpdateError) {
+      console.error("Failed to mark processing job as failed:", jobUpdateError);
+    }
+  }
+}
+
+export async function POST(req: Request) {
   try {
     const body = await req.json();
     const filePath = body?.filePath;
@@ -43,7 +103,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // STEP 1 — Create Job (pending)
+    // Step 1 — Create job
     const { data: createdJob, error: createJobError } = await supabaseAdmin
       .from("processing_jobs")
       .insert({
@@ -59,82 +119,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    const createdJobId = createdJob.id;
-    jobId = createdJobId;
+    const jobId = createdJob.id;
 
-    // STEP 2 — Mark processing
-    await updateProcessingJob(createdJobId, "processing");
+    // Step 2 — Run processing in background
+    setTimeout(() => {
+      processDocumentJob(jobId, filePath).catch(console.error);
+    }, 0);
 
-    // STEP 3 — Existing processing (UNCHANGED)
-    const text = await extractTextFromDocument(filePath);
-
-    if (!text || !text.trim()) {
-      throw new DocumentExtractionError(
-        "No extractable text found in document",
-      );
-    }
-
-    const summary = await summarizeDocumentText(text);
-
-    const fileName = filePath.split("/").pop() || filePath;
-
-    const { data: insertedDocument, error } = await supabaseAdmin
-      .from("documents")
-      .insert({
-        file_name: fileName,
-        file_path: filePath,
-        summary,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    // STEP 4 — Link job to document
-    const { error: linkError } = await supabaseAdmin
-      .from("processing_jobs")
-      .update({
-        document_id: insertedDocument?.id ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", createdJobId);
-
-    if (linkError) {
-      throw new Error(linkError.message);
-    }
-
-    // STEP 5 — Mark completed
-    await updateProcessingJob(createdJobId, "completed");
-
-    // STEP 6 — Response (unchanged + job_id)
+    // Step 3 — Return immediately
     return NextResponse.json({
-      summary,
-      filePath,
-      fileName,
-      job_id: createdJobId,
+      job_id: jobId,
+      status: "pending",
     });
   } catch (error) {
-    // STEP 7 — Failure handling
-    if (jobId) {
-      const message =
-        error instanceof Error ? error.message : "Internal Server Error";
-
-      try {
-        await updateProcessingJob(jobId, "failed", message);
-      } catch (jobUpdateError) {
-        console.error(
-          "Failed to mark processing job as failed:",
-          jobUpdateError,
-        );
-      }
-    }
-
-    if (error instanceof DocumentExtractionError) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
-    }
-
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
 
