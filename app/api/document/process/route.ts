@@ -12,6 +12,8 @@ type JobStatus = "pending" | "processing" | "completed" | "failed";
 type QueueJob = {
   id: string;
   file_path: string;
+  attempts: number;
+  max_attempts: number;
 };
 
 declare global {
@@ -21,6 +23,9 @@ declare global {
   var documentJobWorkerInterval: NodeJS.Timeout | undefined;
 }
 
+/**
+ * Updates a processing job row with the latest status, error details, and timestamp.
+ */
 async function updateProcessingJob(
   jobId: string,
   status: JobStatus,
@@ -40,48 +45,58 @@ async function updateProcessingJob(
   }
 }
 
+/**
+ * Fetches the oldest pending job and attempts to atomically claim it for processing.
+ */
 async function pickNextJob(): Promise<QueueJob | null> {
-  const { data: pendingJob, error: pendingJobError } = await supabaseAdmin
+  const { data: pendingJob, error } = await supabaseAdmin
     .from("processing_jobs")
-    .select("id, file_path")
+    .select("id, file_path, attempts, max_attempts")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (pendingJobError) {
-    throw new Error(`Failed to query pending job: ${pendingJobError.message}`);
+  if (error) {
+    throw new Error(`Failed to query pending job: ${error.message}`);
   }
 
   if (!pendingJob?.id || !pendingJob.file_path) {
     return null;
   }
+  // Retry check
+  if (pendingJob.attempts >= pendingJob.max_attempts) {
+    await updateProcessingJob(
+      pendingJob.id,
+      "failed",
+      "Max retry attempts reached",
+    );
+    return null;
+  }
 
-  // Compare-and-set update prevents two workers from claiming the same job.
+  // Claim job
   const { data: claimedJob, error: claimError } = await supabaseAdmin
     .from("processing_jobs")
     .update({
       status: "processing",
       updated_at: new Date().toISOString(),
-      error_message: null,
     })
     .eq("id", pendingJob.id)
     .eq("status", "pending")
-    .select("id, file_path")
+    .select("id, file_path, attempts, max_attempts")
     .maybeSingle();
 
   if (claimError) {
-    throw new Error(`Failed to claim pending job: ${claimError.message}`);
+    throw new Error(`Failed to claim job: ${claimError.message}`);
   }
 
-  if (!claimedJob?.id || !claimedJob.file_path) {
-    return null;
-  }
-
-  return claimedJob as QueueJob;
+  return claimedJob || null;
 }
 
-// Background processing function
+/**
+ * Runs the full processing pipeline for one job: extract text, summarize, store,
+ * link document, and mark terminal status.
+ */
 async function processDocumentJob(jobId: string, filePath: string) {
   try {
     // Step 1 — Mark processing
@@ -143,20 +158,24 @@ async function processDocumentJob(jobId: string, filePath: string) {
   }
 }
 
+/**
+ * Executes one worker cycle by claiming the next available job and processing it.
+ */
 async function runJobWorker() {
   try {
     const job = await pickNextJob();
 
-    if (!job) {
-      return;
-    }
+    if (!job) return;
 
-    await processDocumentJob(job.id, job.file_path);
+    await processDocumentJobSafe(job);
   } catch (error) {
-    console.error("Job worker iteration failed:", error);
+    console.error("Worker error:", error);
   }
 }
 
+/**
+ * Starts the singleton polling loop that continuously checks for pending jobs.
+ */
 function startWorker() {
   if (globalThis.documentJobWorkerInterval) {
     return;
@@ -174,6 +193,9 @@ if (!globalThis.documentJobWorkerStarted) {
   globalThis.documentJobWorkerStarted = true;
 }
 
+/**
+ * Enqueues a new document processing job and returns its job identifier.
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -212,5 +234,46 @@ export async function POST(req: Request) {
       error instanceof Error ? error.message : "Internal Server Error";
 
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * Handles failed job execution by recording error details and applying retry policy.
+ */
+async function handleJobFailure(job: QueueJob, error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "Internal Server Error";
+
+  const nextAttempts = job.attempts + 1;
+
+  const status = nextAttempts >= job.max_attempts ? "failed" : "pending";
+
+  const { error: updateError } = await supabaseAdmin
+    .from("processing_jobs")
+    .update({
+      status,
+      attempts: nextAttempts,
+      error_message: message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", job.id);
+
+  if (updateError) {
+    console.error("Failed to update job retry:", updateError);
+  }
+}
+
+/**
+ * Wraps job execution with finalization and retry-aware failure handling.
+ */
+async function processDocumentJobSafe(job: QueueJob) {
+  try {
+    await processDocumentJob(job.id, job.file_path);
+
+    await updateProcessingJob(job.id, "completed");
+  } catch (error) {
+    console.error("Job failed:", error);
+
+    await handleJobFailure(job, error);
   }
 }
