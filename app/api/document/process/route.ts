@@ -9,6 +9,17 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 type JobStatus = "pending" | "processing" | "completed" | "failed";
+type QueueJob = {
+  id: string;
+  file_path: string;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var documentJobWorkerStarted: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var documentJobWorkerInterval: NodeJS.Timeout | undefined;
+}
 
 async function updateProcessingJob(
   jobId: string,
@@ -27,6 +38,47 @@ async function updateProcessingJob(
   if (error) {
     throw new Error(`Failed to update processing job: ${error.message}`);
   }
+}
+
+async function pickNextJob(): Promise<QueueJob | null> {
+  const { data: pendingJob, error: pendingJobError } = await supabaseAdmin
+    .from("processing_jobs")
+    .select("id, file_path")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingJobError) {
+    throw new Error(`Failed to query pending job: ${pendingJobError.message}`);
+  }
+
+  if (!pendingJob?.id || !pendingJob.file_path) {
+    return null;
+  }
+
+  // Compare-and-set update prevents two workers from claiming the same job.
+  const { data: claimedJob, error: claimError } = await supabaseAdmin
+    .from("processing_jobs")
+    .update({
+      status: "processing",
+      updated_at: new Date().toISOString(),
+      error_message: null,
+    })
+    .eq("id", pendingJob.id)
+    .eq("status", "pending")
+    .select("id, file_path")
+    .maybeSingle();
+
+  if (claimError) {
+    throw new Error(`Failed to claim pending job: ${claimError.message}`);
+  }
+
+  if (!claimedJob?.id || !claimedJob.file_path) {
+    return null;
+  }
+
+  return claimedJob as QueueJob;
 }
 
 // Background processing function
@@ -91,6 +143,37 @@ async function processDocumentJob(jobId: string, filePath: string) {
   }
 }
 
+async function runJobWorker() {
+  try {
+    const job = await pickNextJob();
+
+    if (!job) {
+      return;
+    }
+
+    await processDocumentJob(job.id, job.file_path);
+  } catch (error) {
+    console.error("Job worker iteration failed:", error);
+  }
+}
+
+function startWorker() {
+  if (globalThis.documentJobWorkerInterval) {
+    return;
+  }
+
+  const pollIntervalMs = 3000;
+
+  globalThis.documentJobWorkerInterval = setInterval(() => {
+    void runJobWorker();
+  }, pollIntervalMs);
+}
+
+if (!globalThis.documentJobWorkerStarted) {
+  startWorker();
+  globalThis.documentJobWorkerStarted = true;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -119,16 +202,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    const jobId = createdJob.id;
-
-    // Step 2 — Run processing in background
-    setTimeout(() => {
-      processDocumentJob(jobId, filePath).catch(console.error);
-    }, 0);
-
-    // Step 3 — Return immediately
+    // Route only enqueues job; worker loop processes it independently.
     return NextResponse.json({
-      job_id: jobId,
+      job_id: createdJob.id,
       status: "pending",
     });
   } catch (error) {
