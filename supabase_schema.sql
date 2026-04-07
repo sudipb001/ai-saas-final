@@ -83,6 +83,23 @@ CREATE TABLE IF NOT EXISTS "public"."documents" (
 ALTER TABLE "public"."documents" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."processing_jobs" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "document_id" "uuid",
+    "file_path" "text" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "error_message" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "attempts" integer DEFAULT 0 NOT NULL,
+    "max_attempts" integer DEFAULT 3 NOT NULL,
+    CONSTRAINT "processing_jobs_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'completed'::"text", 'failed'::"text"])))
+);
+
+
+ALTER TABLE "public"."processing_jobs" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."subscriptions" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid",
@@ -106,8 +123,21 @@ ALTER TABLE ONLY "public"."documents"
 
 
 
+ALTER TABLE ONLY "public"."processing_jobs"
+    ADD CONSTRAINT "processing_jobs_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."subscriptions"
     ADD CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "processing_jobs_document_id_idx" ON "public"."processing_jobs" USING "btree" ("document_id");
+
+
+
+CREATE INDEX "processing_jobs_status_idx" ON "public"."processing_jobs" USING "btree" ("status");
 
 
 
@@ -118,6 +148,11 @@ ALTER TABLE ONLY "public"."ai_requests"
 
 ALTER TABLE ONLY "public"."documents"
     ADD CONSTRAINT "documents_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."processing_jobs"
+    ADD CONSTRAINT "processing_jobs_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE SET NULL;
 
 
 
@@ -377,6 +412,12 @@ GRANT ALL ON TABLE "public"."ai_requests" TO "service_role";
 GRANT ALL ON TABLE "public"."documents" TO "anon";
 GRANT ALL ON TABLE "public"."documents" TO "authenticated";
 GRANT ALL ON TABLE "public"."documents" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."processing_jobs" TO "anon";
+GRANT ALL ON TABLE "public"."processing_jobs" TO "authenticated";
+GRANT ALL ON TABLE "public"."processing_jobs" TO "service_role";
 
 
 
