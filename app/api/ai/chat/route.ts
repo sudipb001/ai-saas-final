@@ -3,10 +3,22 @@ import { chatWithAI, logAIRequest } from "@/services/aiService";
 import { checkUsageLimit } from "@/utils/usageLimit";
 import { checkRateLimit } from "@/utils/rateLimiter";
 
+import { getAuthenticatedUser } from "@/lib/auth";
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // STEP 1 — Authenticate
+    const { user, error: authError } = await getAuthenticatedUser(request);
 
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: authError || "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
+    // STEP 2 — Existing logic (UNCHANGED)
+    const body = await request.json();
     const { message, userId } = body;
 
     console.log("[api/ai/chat] Incoming request", {

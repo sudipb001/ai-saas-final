@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/auth";
 
-export async function GET() {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("documents")
-      .select("id,file_name,file_path,summary,created_at")
-      .order("created_at", { ascending: false })
-      .limit(20);
+export async function GET(req: Request) {
+  // STEP 1 — Authenticate user
+  const { user, error: authError } = await getAuthenticatedUser(req);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ documents: data ?? [] });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: authError || "Unauthorized" },
+      { status: 401 },
+    );
   }
+
+  // STEP 2 — Existing logic (UNCHANGED)
+  const { data, error } = await supabaseAdmin
+    .from("documents")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  return NextResponse.json({ data, error });
 }

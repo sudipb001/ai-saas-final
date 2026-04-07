@@ -5,6 +5,7 @@ import {
 } from "@/services/documentProcessor";
 import { summarizeDocumentText } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -335,9 +336,22 @@ if (!globalThis.documentJobWorkerStarted) {
 /**
  * Enqueues a new document processing job and returns its job identifier.
  */
+
 export async function POST(req: Request) {
   try {
+    // STEP 1 — Authenticate
+    const { user, error: authError } = await getAuthenticatedUser(req);
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: authError || "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
+    // STEP 2 — Existing logic (UNCHANGED)
     const body = await req.json();
+
     const filePath = body?.filePath;
 
     if (typeof filePath !== "string" || !filePath.trim()) {

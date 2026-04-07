@@ -3,8 +3,22 @@ export const runtime = "nodejs";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { generatePdfFromDocument } from "@/services/pdfService";
 
+import { getAuthenticatedUser } from "@/lib/auth";
+
 export async function GET(request: Request) {
+  // STEP 1 — Authenticate
+  const { user, error: authError } = await getAuthenticatedUser(request);
+
+  if (authError || !user) {
+    return Response.json(
+      { error: authError || "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
+  // STEP 2 — Existing logic (UNCHANGED)
   const { searchParams } = new URL(request.url);
+
   const id = searchParams.get("id")?.trim();
 
   if (!id) {
