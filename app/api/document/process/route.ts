@@ -43,6 +43,7 @@ type QueueJob = {
   file_path: string;
   attempts: number;
   max_attempts: number;
+  user_id: string;
 };
 
 declare global {
@@ -89,7 +90,7 @@ async function pickNextJob(): Promise<QueueJob | null> {
 
   const { data: pendingJob, error } = await supabaseAdmin
     .from("processing_jobs")
-    .select("id, file_path, attempts, max_attempts")
+    .select("id, file_path, attempts, max_attempts, user_id")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(1)
@@ -143,7 +144,7 @@ async function pickNextJob(): Promise<QueueJob | null> {
     })
     .eq("id", pendingJob.id)
     .eq("status", "pending")
-    .select("id, file_path, attempts, max_attempts")
+    .select("id, file_path, attempts, max_attempts, user_id")
     .maybeSingle();
 
   if (claimError) {
@@ -166,7 +167,11 @@ async function pickNextJob(): Promise<QueueJob | null> {
  * Runs the full processing pipeline for one job: extract text, summarize, store,
  * link document, and mark terminal status.
  */
-async function processDocumentJob(jobId: string, filePath: string) {
+async function processDocumentJob(
+  jobId: string,
+  filePath: string,
+  userId: string,
+) {
   try {
     // Step 1 — Mark processing
     logJob("PROCESSING_STARTED", {
@@ -226,6 +231,7 @@ async function processDocumentJob(jobId: string, filePath: string) {
         file_name: fileName,
         file_path: filePath,
         summary,
+        user_id: userId,
       })
       .select("id")
       .single();
@@ -372,6 +378,7 @@ export async function POST(req: Request) {
       .insert({
         file_path: filePath,
         status: "pending",
+        user_id: user.id,
       })
       .select("id")
       .single();
@@ -473,7 +480,7 @@ async function handleJobFailure(job: QueueJob, error: unknown) {
  */
 async function processDocumentJobSafe(job: QueueJob) {
   try {
-    await processDocumentJob(job.id, job.file_path);
+    await processDocumentJob(job.id, job.file_path, job.user_id);
 
     logJob("JOB_FINALIZED_SUCCESS", {
       jobId: job.id,

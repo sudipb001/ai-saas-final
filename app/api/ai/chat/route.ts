@@ -19,7 +19,8 @@ export async function POST(request: Request) {
 
     // STEP 2 — Existing logic (UNCHANGED)
     const body = await request.json();
-    const { message, userId } = body;
+    const { message } = body;
+    const userId = user.id;
 
     console.log("[api/ai/chat] Incoming request", {
       resolvedUserId: userId,
