@@ -58,7 +58,7 @@ SET default_table_access_method = "heap";
 
 CREATE TABLE IF NOT EXISTS "public"."ai_requests" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid",
+    "user_id" "uuid" NOT NULL,
     "request_type" "text" NOT NULL,
     "prompt" "text",
     "response" "text",
@@ -71,7 +71,7 @@ ALTER TABLE "public"."ai_requests" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."documents" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid",
+    "user_id" "uuid" NOT NULL,
     "file_name" "text" NOT NULL,
     "file_path" "text",
     "content" "text",
@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS "public"."processing_jobs" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "attempts" integer DEFAULT 0 NOT NULL,
     "max_attempts" integer DEFAULT 3 NOT NULL,
+    "user_id" "uuid" NOT NULL,
     CONSTRAINT "processing_jobs_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'completed'::"text", 'failed'::"text"])))
 );
 
@@ -133,11 +134,23 @@ ALTER TABLE ONLY "public"."subscriptions"
 
 
 
+CREATE INDEX "ai_requests_user_id_idx" ON "public"."ai_requests" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "documents_user_id_idx" ON "public"."documents" USING "btree" ("user_id");
+
+
+
 CREATE INDEX "processing_jobs_document_id_idx" ON "public"."processing_jobs" USING "btree" ("document_id");
 
 
 
 CREATE INDEX "processing_jobs_status_idx" ON "public"."processing_jobs" USING "btree" ("status");
+
+
+
+CREATE INDEX "processing_jobs_user_id_idx" ON "public"."processing_jobs" USING "btree" ("user_id");
 
 
 
@@ -152,7 +165,7 @@ ALTER TABLE ONLY "public"."documents"
 
 
 ALTER TABLE ONLY "public"."processing_jobs"
-    ADD CONSTRAINT "processing_jobs_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE SET NULL;
+    ADD CONSTRAINT "processing_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -220,7 +233,42 @@ CREATE POLICY "Users can view their subscription" ON "public"."subscriptions" FO
 ALTER TABLE "public"."ai_requests" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "ai_requests_insert_own" ON "public"."ai_requests" FOR INSERT WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "ai_requests_select_own" ON "public"."ai_requests" FOR SELECT USING (("user_id" = "auth"."uid"()));
+
+
+
 ALTER TABLE "public"."documents" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "documents_delete_own" ON "public"."documents" FOR DELETE USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "documents_insert_own" ON "public"."documents" FOR INSERT WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "documents_select_own" ON "public"."documents" FOR SELECT USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "documents_update_own" ON "public"."documents" FOR UPDATE USING (("user_id" = "auth"."uid"()));
+
+
+
+ALTER TABLE "public"."processing_jobs" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "processing_jobs_insert_own" ON "public"."processing_jobs" FOR INSERT WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "processing_jobs_select_own" ON "public"."processing_jobs" FOR SELECT USING (("user_id" = "auth"."uid"()));
+
 
 
 ALTER TABLE "public"."subscriptions" ENABLE ROW LEVEL SECURITY;
