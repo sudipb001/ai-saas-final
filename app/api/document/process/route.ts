@@ -92,6 +92,7 @@ async function pickNextJob(): Promise<QueueJob | null> {
     .from("processing_jobs")
     .select("id, file_path, attempts, max_attempts, user_id")
     .eq("status", "pending")
+    .not("user_id", "is", null)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -144,6 +145,7 @@ async function pickNextJob(): Promise<QueueJob | null> {
     })
     .eq("id", pendingJob.id)
     .eq("status", "pending")
+    .eq("user_id", pendingJob.user_id)
     .select("id, file_path, attempts, max_attempts, user_id")
     .maybeSingle();
 
@@ -172,6 +174,10 @@ async function processDocumentJob(
   filePath: string,
   userId: string,
 ) {
+  if (!userId) {
+    throw new Error("Missing user_id in worker job");
+  }
+
   try {
     // Step 1 — Mark processing
     logJob("PROCESSING_STARTED", {
@@ -225,6 +231,10 @@ async function processDocumentJob(
       fileName,
     });
 
+    if (!userId) {
+      throw new Error("Cannot insert document without user ownership");
+    }
+
     const { data: insertedDocument, error: insertError } = await supabaseAdmin
       .from("documents")
       .insert({
@@ -258,7 +268,8 @@ async function processDocumentJob(
         document_id: insertedDocument?.id ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .eq("user_id", userId);
 
     if (linkError) {
       throw new Error(linkError.message);
