@@ -33,12 +33,23 @@ export async function uploadDocument(file: File) {
 export async function processUploadedDocument(
   filePath: string,
 ): Promise<ProcessDocumentResponse> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
   const response = await fetch("/api/document/process", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ filePath }),
+    body: JSON.stringify({
+      filePath,
+      userId: user.id,
+    }),
   });
 
   if (!response.ok) {
@@ -47,10 +58,6 @@ export async function processUploadedDocument(
   }
 
   const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload?.error || "Document processing failed");
-  }
 
   return payload as ProcessDocumentResponse;
 }
@@ -68,12 +75,15 @@ export async function uploadAndProcessDocument(
 }
 
 export async function listDocuments(): Promise<ListDocumentsResponse> {
-  const response = await fetch("/api/documents", {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  const response = await fetch(`/api/documents?userId=${user.id}`);
 
   const payload = await response.json();
 
@@ -81,5 +91,7 @@ export async function listDocuments(): Promise<ListDocumentsResponse> {
     throw new Error(payload?.error || "Failed to load documents");
   }
 
-  return payload as ListDocumentsResponse;
+  return {
+    documents: payload.data ?? [],
+  };
 }

@@ -17,7 +17,7 @@ export default function FileUpload() {
   const loadDocuments = async () => {
     try {
       const data = await listDocuments();
-      setDocuments(data.documents);
+      setDocuments(data.documents ?? []);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "An error occurred");
     }
@@ -149,7 +149,7 @@ export default function FileUpload() {
       <div className="mt-6 rounded border border-gray-700 bg-gray-800 p-3">
         <h3 className="mb-3 font-semibold text-white">Recent Documents</h3>
 
-        {documents.length === 0 ? (
+        {(documents?.length ?? 0) === 0 ? (
           <p className="text-sm text-gray-300">No processed documents yet.</p>
         ) : (
           <div className="space-y-3">
