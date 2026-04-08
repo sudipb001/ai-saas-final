@@ -17,6 +17,7 @@ export async function GET(req: Request) {
   const { data, error } = await supabaseAdmin
     .from("documents")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   return NextResponse.json({ data, error });

@@ -22,6 +22,7 @@ export async function GET(request: Request) {
   const { data: documents, error } = await supabaseAdmin
     .from("documents")
     .select("file_name, summary, created_at")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   if (error) {

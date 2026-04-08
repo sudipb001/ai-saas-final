@@ -29,6 +29,7 @@ export async function GET(request: Request) {
     .from("documents")
     .select("file_name, summary")
     .eq("id", id)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (error) {
