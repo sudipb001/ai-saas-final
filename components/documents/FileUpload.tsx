@@ -44,11 +44,21 @@ export default function FileUpload() {
         return;
       }
 
-      const result = await uploadAndProcessDocument(file);
+      // const result = await uploadAndProcessDocument(file);
 
-      setMessage(`File processed: ${result.fileName}`);
-      setSummary(result.summary);
-      await loadDocuments();
+      // setMessage(`File processed: ${result.fileName}`);
+      // setSummary(result.summary);
+      // await loadDocuments();
+
+      await uploadAndProcessDocument(file);
+
+      setMessage("Processing started... Please wait.");
+
+      // Reload documents after short delay
+      setTimeout(() => {
+        loadDocuments();
+        setMessage("");
+      }, 2000);
     } catch (error) {
       console.error(error);
       setMessage("Upload failed. Check console.");

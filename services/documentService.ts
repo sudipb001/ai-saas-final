@@ -2,10 +2,15 @@ import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import type { ListDocumentsResponse } from "@/types/document";
 
+// type ProcessDocumentResponse = {
+//   summary: string;
+//   filePath: string;
+//   fileName: string;
+// };
+
 type ProcessDocumentResponse = {
-  summary: string;
-  filePath: string;
-  fileName: string;
+  job_id: string;
+  status: string;
 };
 
 export async function uploadDocument(file: File) {
@@ -59,7 +64,8 @@ export async function processUploadedDocument(
 
   const payload = await response.json();
 
-  return payload as ProcessDocumentResponse;
+  // return payload as ProcessDocumentResponse;
+  return payload;
 }
 
 export async function uploadAndProcessDocument(
