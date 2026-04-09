@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -26,20 +27,18 @@ export default function RegisterPage() {
       return;
     }
 
-    alert("Registration successful");
-
-    router.push("/login");
+    router.replace("/dashboard");
   };
 
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <div className="w-96 p-6 border rounded">
-        <h1 className="text-2xl font-bold mb-4">Register</h1>
+      <div className="w-96 rounded border p-6">
+        <h1 className="mb-4 text-2xl font-bold">Register</h1>
 
         <input
           type="email"
           placeholder="Email"
-          className="border p-2 w-full mb-3"
+          className="mb-3 w-full border p-2"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -47,18 +46,25 @@ export default function RegisterPage() {
         <input
           type="password"
           placeholder="Password"
-          className="border p-2 w-full mb-3"
+          className="mb-3 w-full border p-2"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
         <button
-          className="bg-blue-600 text-white p-2 w-full"
+          className="w-full bg-blue-600 p-2 text-white disabled:opacity-70"
           onClick={handleRegister}
           disabled={loading}
         >
-          Register
+          {loading ? "Creating account..." : "Register"}
         </button>
+
+        <p className="mt-4 text-sm">
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-blue-600 underline">
+            Login
+          </Link>
+        </p>
       </div>
     </main>
   );
