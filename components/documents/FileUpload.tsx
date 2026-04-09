@@ -1,5 +1,6 @@
 "use client";
 
+import { getJobStatus } from "@/services/documentService";
 import { useEffect, useState } from "react";
 import {
   listDocuments,
@@ -27,6 +28,30 @@ export default function FileUpload() {
     void loadDocuments();
   }, []);
 
+  const pollJob = async (jobId: string) => {
+    return new Promise<void>((resolve) => {
+      const interval = setInterval(async () => {
+        try {
+          const job = await getJobStatus(jobId);
+
+          if (job.status === "completed" && job.document_id) {
+            clearInterval(interval);
+            resolve();
+          }
+
+          if (job.status === "failed") {
+            clearInterval(interval);
+            throw new Error("Processing failed");
+          }
+        } catch (error) {
+          console.error(error);
+          clearInterval(interval);
+          resolve();
+        }
+      }, 2000);
+    });
+  };
+
   const handleUpload = async () => {
     if (!file) {
       alert("Please select a file");
@@ -44,21 +69,19 @@ export default function FileUpload() {
         return;
       }
 
-      // const result = await uploadAndProcessDocument(file);
+      const result = await uploadAndProcessDocument(file);
 
-      // setMessage(`File processed: ${result.fileName}`);
-      // setSummary(result.summary);
-      // await loadDocuments();
+      if (!result || !result.job_id) {
+        throw new Error("Invalid API response: job_id missing");
+      }
 
-      await uploadAndProcessDocument(file);
+      setMessage("Analyzing document... This may take up to 15 seconds");
 
-      setMessage("Processing started... Please wait.");
+      await pollJob(result.job_id);
 
-      // Reload documents after short delay
-      setTimeout(() => {
-        loadDocuments();
-        setMessage("");
-      }, 2000);
+      await loadDocuments();
+
+      setMessage("Document ready");
     } catch (error) {
       console.error(error);
       setMessage("Upload failed. Check console.");

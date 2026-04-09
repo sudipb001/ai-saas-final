@@ -2,12 +2,6 @@ import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import type { ListDocumentsResponse } from "@/types/document";
 
-// type ProcessDocumentResponse = {
-//   summary: string;
-//   filePath: string;
-//   fileName: string;
-// };
-
 type ProcessDocumentResponse = {
   job_id: string;
   status: string;
@@ -57,15 +51,13 @@ export async function processUploadedDocument(
     }),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Processing failed");
-  }
-
   const payload = await response.json();
 
-  // return payload as ProcessDocumentResponse;
-  return payload;
+  if (!response.ok) {
+    throw new Error(payload.error || "Processing failed");
+  }
+
+  return payload; // IMPORTANT: no casting
 }
 
 export async function uploadAndProcessDocument(
@@ -100,4 +92,26 @@ export async function listDocuments(): Promise<ListDocumentsResponse> {
   return {
     documents: payload.data ?? [],
   };
+}
+
+export async function getJobStatus(jobId: string) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  const response = await fetch(
+    `/api/job/${jobId}?userId=${encodeURIComponent(user.id)}`,
+  );
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || "Failed to fetch job");
+  }
+
+  return payload.data;
 }
